@@ -114,13 +114,13 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             if (linkColumn) log(`Keyword match found in column: "${linkColumn}"`);
         }
 
-        // 3. Fallback to first column
+        // 3. Absolute Fallback: ONLY if keyword match failed and no pattern found
         if (!linkColumn) {
-            linkColumn = headers[0];
-            log(`Fallback to first column: "${linkColumn}"`);
+            log(`CRITICAL: No column with Instagram links detected in the entire file.`);
+            return res.status(400).json({ error: "Could not find a column containing Instagram links. Please ensure your CSV has a column with links like 'https://www.instagram.com/reel/...' or starts with a header like 'Reel Link'." });
         }
 
-        log(`Detected link column: "${linkColumn}"`);
+        log(`Final selection: Column "${linkColumn}" will be used for scraping.`);
 
         const links = records
             .map(r => (r[linkColumn] || "").trim())
@@ -204,8 +204,13 @@ app.get('/download/:jobId', (req, res) => {
     const selectedFields = fieldsParam ? fieldsParam.split(',') : [];
 
     const data = job.originalRows.map(row => {
-        const link = row[job.linkColumn];
-        const result = job.results.find(r => r.link === link);
+        const rawLink = (row[job.linkColumn] || "");
+        const cleanLink = rawLink.split('?')[0].replace(/\/$/, "");
+
+        const result = job.results.find(r => {
+            const rClean = (r.link || "").split('?')[0].replace(/\/$/, "");
+            return rClean === cleanLink;
+        });
 
         const mergedRow = { ...row };
         selectedFields.forEach(f => {
