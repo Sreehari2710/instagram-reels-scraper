@@ -76,11 +76,19 @@ class ApifyScraper {
 
     _formatItems(links, items) {
         return links.map(link => {
-            const cleanLink = link.split('?')[0].replace(/\/$/, "");
+            // Scrub original link: basic cleaning
+            const cleanOriginal = link.split('?')[0].replace(/\/$/, "");
 
             const matchedItem = items.find(item => {
-                const postUrl = (item.url || item.inputUrl || "").split('?')[0].replace(/\/$/, "");
-                return postUrl && postUrl.includes(cleanLink);
+                // Prioritize inputUrl (Apify tracks what we sent)
+                const inputUrl = (item.inputUrl || "").split('?')[0].replace(/\/$/, "");
+                const currentUrl = (item.url || "").split('?')[0].replace(/\/$/, "");
+
+                // Check for direct match on inputUrl OR if the item url matches our cleaned input
+                return (inputUrl && inputUrl === cleanOriginal) ||
+                    (currentUrl && currentUrl === cleanOriginal) ||
+                    (currentUrl && currentUrl.includes(cleanOriginal)) ||
+                    (cleanOriginal && cleanOriginal.includes(currentUrl));
             });
 
             if (matchedItem) {
