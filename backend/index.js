@@ -66,7 +66,7 @@ app.get('/test-apify', async (req, res) => {
 });
 
 app.post('/upload', upload.single('file'), async (req, res) => {
-    console.log('Upload request received');
+    log('Upload request received');
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -115,7 +115,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             linkColumn = candidates[0] || headers[0];
         }
 
-        console.log(`Detected link column: "${linkColumn}"`);
+        log(`Detected link column: "${linkColumn}"`);
 
         const links = records.map(r => r[linkColumn] || "").filter(l => l);
         const jobId = uuidv4();
