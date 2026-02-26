@@ -85,39 +85,47 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 
         const headers = Object.keys(records[0]);
 
-        // 1. First, find all columns that might contain links
-        const candidates = headers.filter(h => {
-            const lower = h.toLowerCase();
-            return lower.includes('reel') || lower === 'link' || lower === 'links' || lower.includes('url');
-        });
-
-        // 2. Rank candidates by checking their actual content
         let linkColumn = null;
-        for (const col of candidates) {
-            // Check first 5 rows to see if any contain an instagram reel link
-            const isInstaCol = records.slice(0, 5).some(row => {
+
+        // 1. High Priority: Scan ALL columns for actual Instagram link patterns
+        for (const col of headers) {
+            const isInstaCol = records.slice(0, 10).some(row => {
                 const val = (row[col] || "").toLowerCase();
                 return val.includes('instagram.com/reels/') || val.includes('instagram.com/p/') || val.includes('instagram.com/tv/');
             });
             if (isInstaCol) {
                 linkColumn = col;
+                log(`Pattern match found in column: "${col}"`);
                 break;
             }
         }
 
-        // 3. Fallback to keyword "reel" if no content match
+        // 2. Medium Priority: Scan headers for keywords
         if (!linkColumn) {
-            linkColumn = headers.find(h => h.toLowerCase().includes('reel'));
+            linkColumn = headers.find(h => {
+                const lower = h.toLowerCase();
+                return lower.includes('reel') || lower === 'link' || lower === 'links' || lower.includes('url');
+            });
+            if (linkColumn) log(`Keyword match found in column: "${linkColumn}"`);
         }
 
-        // 4. Final fallbacks
+        // 3. Fallback to first column
         if (!linkColumn) {
-            linkColumn = candidates[0] || headers[0];
+            linkColumn = headers[0];
+            log(`Fallback to first column: "${linkColumn}"`);
         }
 
         log(`Detected link column: "${linkColumn}"`);
 
-        const links = records.map(r => r[linkColumn] || "").filter(l => l);
+        const links = records
+            .map(r => (r[linkColumn] || "").trim())
+            .filter(l => l && (l.includes('instagram.com/reels/') || l.includes('instagram.com/p/') || l.includes('instagram.com/tv/')));
+
+        if (links.length === 0) {
+            log(`ERROR: No valid Instagram Reel URLs found in column "${linkColumn}"`);
+            return res.status(400).json({ error: `No valid Instagram Reel URLs found in column "${linkColumn}". Please ensure the column contains links like https://www.instagram.com/reels/...` });
+        }
+
         const jobId = uuidv4();
 
         jobs.set(jobId, {
