@@ -165,7 +165,9 @@ async function processJob(jobId, links) {
         const scrapedResults = await scraper.scrapeReels(links, (itemCount, currentResults) => {
             job.progress = Math.min(itemCount, links.length);
             job.results = currentResults;
-        }, log); // Pass our log function to the scraper
+        }, log, (runId) => {
+            job.runId = runId;
+        }); // Pass our log function and runId callback
 
         job.results = scrapedResults;
         job.progress = links.length;
@@ -182,6 +184,24 @@ app.get('/status/:jobId', (req, res) => {
     const job = jobs.get(req.params.jobId);
     if (!job) return res.status(404).json({ error: 'Job not found' });
     res.json(job);
+});
+
+app.post('/stop/:jobId', async (req, res) => {
+    const jobId = req.params.jobId;
+    const job = jobs.get(jobId);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+
+    try {
+        if (job.runId) {
+            log(`Stopping job ${jobId} (Apify Run: ${job.runId})...`);
+            await scraper.abortRun(job.runId);
+        }
+        job.status = 'aborted';
+        res.json({ success: true, message: "Job stopped" });
+    } catch (e) {
+        log(`Failed to stop job ${jobId}: ${e.message}`);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 app.get('/fields', (req, res) => {

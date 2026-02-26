@@ -11,7 +11,19 @@ class ApifyScraper {
         this.client = new ApifyClient({ token: apiToken });
     }
 
-    async scrapeReels(links, onProgress = null, externalLogger = null) {
+    async abortRun(runId) {
+        if (!this.client || !runId) return;
+        try {
+            console.log(`[Scraper] Aborting run ${runId}...`);
+            await this.client.run(runId).abort();
+            return { success: true };
+        } catch (e) {
+            console.error(`[Scraper] Failed to abort run ${runId}: ${e.message}`);
+            throw e;
+        }
+    }
+
+    async scrapeReels(links, onProgress = null, externalLogger = null, onRunId = null) {
         const log = (msg) => {
             console.log(`[Scraper] ${msg}`);
             if (externalLogger) externalLogger(`[Scraper] ${msg}`);
@@ -39,6 +51,7 @@ class ApifyScraper {
             const datasetId = run.defaultDatasetId;
 
             log(`Run started successfully. ID: ${runId} | Dataset: ${datasetId}`);
+            if (onRunId) onRunId(runId);
 
             // Poll for progress & intermediate results
             let finished = false;

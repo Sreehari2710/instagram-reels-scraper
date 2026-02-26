@@ -26,11 +26,12 @@ interface ResultsViewProps {
     total: number;
     results: Result[];
     onDownload: (fields?: string) => void;
+    onStop: () => void;
     onReset: () => void;
     jobId: string | null;
 }
 
-export default function ResultsView({ status, progress, total, results, onDownload, onReset, jobId }: ResultsViewProps) {
+export default function ResultsView({ status, progress, total, results, onDownload, onStop, onReset, jobId }: ResultsViewProps) {
     const percent = total > 0 ? Math.round((progress / total) * 100) : 0;
 
     // Field Selection Modal State
@@ -202,24 +203,26 @@ export default function ResultsView({ status, progress, total, results, onDownlo
                 )}
             </AnimatePresence>
 
-            {/* Progress Card */}
+            {/* Status Card */}
             <div className="bg-white rounded-2xl p-8 mb-10 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-8 animate-in fade-in slide-in-from-bottom-5 duration-500">
                 <div className="flex-1 w-full">
-                    <div className="flex justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                            <div className={`w-3 h-3 rounded-full ${status === 'completed' ? 'bg-green-500' : 'bg-blue-500 animate-pulse'}`}></div>
-                            <span className="font-extrabold text-2xl text-slate-900 tracking-tight">
-                                {status === 'processing' ? 'SCRAPING...' : status === 'completed' ? 'DONE!' : 'PAUSED'}
-                            </span>
-                        </div>
-                        <span className="font-bold text-slate-400 text-xl">{progress} / {total}</span>
-                    </div>
-                    <div className="w-full bg-slate-100 rounded-full h-4 overflow-hidden relative">
-                        <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${percent}%` }}
-                            className="h-full bg-blue-500 rounded-full"
-                        />
+                    <div className="flex items-center gap-4">
+                        <div className={`w-3 h-3 rounded-full ${status === 'completed' ? 'bg-green-500' : status === 'failed' || status === 'aborted' ? 'bg-red-500' : 'bg-blue-500 animate-pulse'}`}></div>
+                        <span className="font-extrabold text-2xl text-slate-900 tracking-tight uppercase">
+                            {status === 'processing' ? 'SCRAPING...' :
+                                status === 'completed' ? 'DONE!' :
+                                    status === 'aborted' ? 'STOPPED' :
+                                        status === 'failed' ? 'FAILED' : 'PAUSED'}
+                        </span>
+
+                        {status === 'processing' && (
+                            <button
+                                onClick={onStop}
+                                className="ml-4 bg-red-50 text-red-600 px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-red-100 transition-all border border-red-100 flex items-center gap-2"
+                            >
+                                <XCircle size={14} /> Stop Scraping
+                            </button>
+                        )}
                     </div>
                 </div>
 

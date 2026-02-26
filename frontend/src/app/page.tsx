@@ -11,7 +11,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function Home() {
   const [jobId, setJobId] = useState<string | null>(null);
-  const [status, setStatus] = useState<'idle' | 'uploading' | 'processing' | 'completed' | 'failed' | 'awaiting_action'>('idle');
+  const [status, setStatus] = useState<'idle' | 'uploading' | 'processing' | 'completed' | 'failed' | 'aborted' | 'awaiting_action'>('idle');
   const [progress, setProgress] = useState(0);
   const [total, setTotal] = useState(0);
   const [results, setResults] = useState<any[]>([]);
@@ -61,6 +61,18 @@ export default function Home() {
         console.error("Polling failed", error);
       }
     }, 2000);
+  };
+
+  const handleStop = async () => {
+    if (!jobId) return;
+    try {
+      await axios.post(`${API_BASE_URL}/stop/${jobId}`);
+      setStatus('aborted');
+      if (pollInterval.current) clearInterval(pollInterval.current);
+    } catch (error) {
+      console.error("Stop failed", error);
+      alert("Failed to stop scraping. Please try again.");
+    }
   };
 
   const handleDownload = (fields?: string) => {
@@ -132,6 +144,7 @@ export default function Home() {
             total={total}
             results={results}
             onDownload={handleDownload}
+            onStop={handleStop}
             onReset={() => {
               setJobId(null);
               setStatus('idle');
