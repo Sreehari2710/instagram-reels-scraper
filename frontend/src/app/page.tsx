@@ -29,9 +29,10 @@ export default function Home() {
       setTotal(response.data.total);
       setStatus('processing');
       startPolling(response.data.job_id);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Upload failed", error);
-      alert(`Upload failed. Make sure the backend reached at ${API_BASE_URL} is running.`);
+      const errorMsg = error.response?.data?.error || `Upload failed. Make sure the backend reached at ${API_BASE_URL} is running.`;
+      alert(errorMsg);
       setStatus('idle');
     }
   };

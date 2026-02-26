@@ -95,7 +95,8 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 
             const isInstaCol = records.slice(0, 50).some(row => {
                 const val = (row[col] || "").toLowerCase();
-                return val.includes('instagram.com/') && (val.includes('/reels/') || val.includes('/p/') || val.includes('/tv/'));
+                // Match both /reel/ and /reels/ patterns
+                return val.includes('instagram.com/') && (val.includes('/reel/') || val.includes('/reels/') || val.includes('/p/') || val.includes('/tv/'));
             });
             if (isInstaCol) {
                 linkColumn = col;
@@ -123,7 +124,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 
         const links = records
             .map(r => (r[linkColumn] || "").trim())
-            .filter(l => l && (l.includes('instagram.com/reels/') || l.includes('instagram.com/p/') || l.includes('instagram.com/tv/')));
+            .filter(l => l && l.includes('instagram.com/') && (l.includes('/reel/') || l.includes('/reels/') || l.includes('/p/') || l.includes('/tv/')));
 
         if (links.length === 0) {
             log(`ERROR: No valid Instagram Reel URLs found in column "${linkColumn}"`);
