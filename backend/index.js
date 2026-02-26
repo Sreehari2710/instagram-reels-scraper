@@ -46,12 +46,16 @@ process.on('unhandledRejection', (reason, promise) => {
 
 app.get('/test-apify', async (req, res) => {
     try {
+        log("Testing Apify configuration...");
         if (!scraper.client) {
+            log("Apify Token missing");
             return res.json({ status: 'failed', message: 'Apify API Token not configured' });
         }
         await scraper.client.actors().list();
+        log("Apify Connection Verified!");
         res.json({ status: 'success', message: 'Apify Connection is active!' });
     } catch (e) {
+        log(`Apify Connection Error: ${e.message}`);
         res.status(500).json({ status: 'failed', message: `Global Token Error: ${e.message}` });
     }
 });
