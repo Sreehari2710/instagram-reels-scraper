@@ -13,10 +13,20 @@ const port = 8000;
 app.use(cors());
 app.use(express.json());
 
+// Log buffer for debugging production
+const debugLogs = [];
+const log = (msg) => {
+    const entry = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    console.log(entry);
+    debugLogs.push(entry);
+    if (debugLogs.length > 200) debugLogs.shift();
+};
+
 // Health check for Render
 app.get('/', (req, res) => res.status(200).send('Instagram Scraper Backend is Running'));
 app.get('/health', (req, res) => res.status(200).send('OK'));
 app.get('/ping', (req, res) => res.status(200).send('pong'));
+app.get('/debug-logs', (req, res) => res.status(200).send(debugLogs.join('\n')));
 
 // In-memory job storage
 const jobs = new Map();

@@ -12,13 +12,15 @@ class ApifyScraper {
     }
 
     async scrapeReels(links, onProgress = null) {
+        const log = (msg) => console.log(`[Scraper] ${msg}`);
+
         if (!this.client) {
-            return links.map(link => ({
-                link, status: 'failed', error: 'Apify API Token not configured'
-            }));
+            log("Error: Client not initialized");
+            return links.map(link => ({ link, status: 'failed', error: 'Apify API Token not configured' }));
         }
 
         try {
+            log(`Preparing to scrape ${links.length} reels...`);
             const runInput = {
                 "directUrls": links,
                 "resultsLimit": 1,
@@ -28,39 +30,43 @@ class ApifyScraper {
                 "skipPinnedPosts": true
             };
 
-            console.log(`[Apify] Starting Actor for ${links.length} reels...`);
+            log("Calling Apify start()...");
             const run = await this.client.actor("apify/instagram-reel-scraper").start(runInput);
             const runId = run.id;
             const datasetId = run.defaultDatasetId;
 
-            console.log(`[Apify] Run started: ${runId}`);
+            log(`Run started successfully. ID: ${runId} | Dataset: ${datasetId}`);
 
             // Poll for progress & intermediate results
             let finished = false;
             while (!finished) {
+                log(`Polling run ${runId}...`);
                 const currentRun = await this.client.run(runId).get();
                 const itemCount = currentRun.itemCount || 0;
+                const status = currentRun.status;
 
-                // Fetch intermediate items to show progress in UI
-                const { items } = await this.client.dataset(datasetId).listItems();
+                log(`Status: ${status} | Items: ${itemCount}`);
+
+                // Fetch intermediate items
+                const { items } = await this.client.dataset(datasetId).listItems({ limit: 1000 });
 
                 if (onProgress) {
                     onProgress(itemCount, this._formatItems(links, items));
                 }
 
-                if (['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'].includes(currentRun.status)) {
+                if (['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'].includes(status)) {
                     finished = true;
-                    console.log(`[Apify] Run finished: ${currentRun.status}`);
+                    log(`Scrape finished with status: ${status}`);
                 } else {
                     await new Promise(res => setTimeout(res, 5000));
                 }
             }
 
-            const { items } = await this.client.dataset(datasetId).listItems();
+            const { items } = await this.client.dataset(datasetId).listItems({ limit: 1000 });
             return this._formatItems(links, items);
 
         } catch (e) {
-            console.error(`[Apify] Error: ${e.message}`);
+            log(`CRITICAL ERROR: ${e.message}`);
             throw e;
         }
     }
