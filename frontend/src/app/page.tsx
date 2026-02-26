@@ -108,7 +108,7 @@ export default function Home() {
         </div>
 
         <div className="hidden md:flex gap-6 items-center">
-          <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Internal v1.2</p>
+          <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Internal v1.3</p>
         </div>
       </header>
 
