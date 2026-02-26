@@ -12,8 +12,6 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 export default function Home() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'uploading' | 'processing' | 'completed' | 'failed' | 'aborted' | 'awaiting_action'>('idle');
-  const [progress, setProgress] = useState(0);
-  const [total, setTotal] = useState(0);
   const [results, setResults] = useState<any[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const pollInterval = useRef<NodeJS.Timeout | null>(null);
@@ -26,7 +24,6 @@ export default function Home() {
     try {
       const response = await axios.post(`${API_BASE_URL}/upload`, formData);
       setJobId(response.data.job_id);
-      setTotal(response.data.total);
       setStatus('processing');
       startPolling(response.data.job_id);
     } catch (error: any) {
@@ -46,7 +43,6 @@ export default function Home() {
         const response = await axios.get(`${API_BASE_URL}/status/${id}`);
         const data = response.data;
 
-        setProgress(data.progress);
         setResults(data.results);
 
         if (data.status === 'completed') {
@@ -86,8 +82,7 @@ export default function Home() {
   const handleReset = () => {
     setJobId(null);
     setStatus('idle');
-    setProgress(0);
-    setTotal(0);
+    setStatus('idle');
     setResults([]);
     if (pollInterval.current) clearInterval(pollInterval.current);
   };
@@ -147,7 +142,6 @@ export default function Home() {
               setJobId(null);
               setStatus('idle');
               setResults([]);
-              setProgress(0);
             }}
             jobId={jobId}
           />
