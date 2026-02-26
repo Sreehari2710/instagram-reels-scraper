@@ -1,0 +1,69 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --primary: #3b82f6;
+  --secondary: #64748b;
+  --accent: #f59e0b;
+  --card: #ffffff;
+  --border: #e2e8f0;
+  --success: #10b981;
+  --error: #ef4444;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Modern Components using Tailwind Utilities */
+@utility modern-card {
+  @apply bg-white rounded-2xl border border-slate-200 shadow-sm transition-all duration-300;
+}
+
+@utility modern-card-hover {
+  @apply shadow-md border-slate-300;
+}
+
+@utility modern-button {
+  @apply px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center justify-center gap-2 text-sm;
+}
+
+@utility primary-button {
+  @apply bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg active:scale-95;
+}
+
+@utility secondary-button {
+  @apply bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 active:scale-95;
+}
+
+@utility status-badge {
+  @apply px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider;
+}
+
+@utility badge-success {
+  @apply bg-green-100 text-green-700;
+}
+
+@utility badge-processing {
+  @apply bg-blue-100 text-blue-700 animate-pulse;
+}
+
+@utility badge-error {
+  @apply bg-red-100 text-red-700;
+}
+
+/* Remove old Neo-Brutal utility classes to avoid confusion */
+.neo-box {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.neo-button {
+  border: none !important;
+  box-shadow: none !important;
+}
