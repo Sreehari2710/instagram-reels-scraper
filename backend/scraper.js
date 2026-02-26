@@ -25,7 +25,7 @@ class ApifyScraper {
         try {
             log(`Preparing to scrape ${links.length} reels...`);
             const runInput = {
-                "directUrls": links,
+                "username": links,
                 "resultsLimit": 1,
                 "includeDownloadedVideo": false,
                 "includeSharesCount": true,
