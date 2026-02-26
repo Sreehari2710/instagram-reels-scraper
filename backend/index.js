@@ -65,17 +65,38 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         }
 
         const headers = Object.keys(records[0]);
-        let linkColumn = headers.find(h =>
-            h.toLowerCase().includes('reel') ||
-            h.toLowerCase() === 'link' ||
-            h.toLowerCase() === 'links' ||
-            h.toLowerCase().includes('url')
-        );
 
-        if (!linkColumn) {
-            linkColumn = headers[0];
-            console.log(`No obvious link column found, falling back to: ${linkColumn}`);
+        // 1. First, find all columns that might contain links
+        const candidates = headers.filter(h => {
+            const lower = h.toLowerCase();
+            return lower.includes('reel') || lower === 'link' || lower === 'links' || lower.includes('url');
+        });
+
+        // 2. Rank candidates by checking their actual content
+        let linkColumn = null;
+        for (const col of candidates) {
+            // Check first 5 rows to see if any contain an instagram reel link
+            const isInstaCol = records.slice(0, 5).some(row => {
+                const val = (row[col] || "").toLowerCase();
+                return val.includes('instagram.com/reels/') || val.includes('instagram.com/p/') || val.includes('instagram.com/tv/');
+            });
+            if (isInstaCol) {
+                linkColumn = col;
+                break;
+            }
         }
+
+        // 3. Fallback to keyword "reel" if no content match
+        if (!linkColumn) {
+            linkColumn = headers.find(h => h.toLowerCase().includes('reel'));
+        }
+
+        // 4. Final fallbacks
+        if (!linkColumn) {
+            linkColumn = candidates[0] || headers[0];
+        }
+
+        console.log(`Detected link column: "${linkColumn}"`);
 
         const links = records.map(r => r[linkColumn] || "").filter(l => l);
         const jobId = uuidv4();
