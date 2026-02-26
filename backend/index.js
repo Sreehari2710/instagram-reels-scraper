@@ -103,17 +103,13 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 async function processJob(jobId, links) {
     const job = jobs.get(jobId);
     try {
-        const scrapedResults = await scraper.scrapeReels(links, (itemCount) => {
-            job.progress = itemCount;
+        const scrapedResults = await scraper.scrapeReels(links, (itemCount, currentResults) => {
+            job.progress = Math.min(itemCount, links.length);
+            job.results = currentResults;
         });
 
-        const orderedResults = links.map(inputLink => {
-            const found = scrapedResults.find(r => r.link === inputLink);
-            return found || { link: inputLink, status: 'failed', error: 'Not processed' };
-        });
-
-        job.results = orderedResults;
-        job.progress = orderedResults.length;
+        job.results = scrapedResults;
+        job.progress = links.length;
         job.status = 'completed';
         console.log(`Job ${jobId} completed successfully`);
     } catch (e) {
