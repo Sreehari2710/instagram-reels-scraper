@@ -221,7 +221,7 @@ app.get('/fields', (req, res) => {
 
 app.get('/download/:jobId', (req, res) => {
     const job = jobs.get(req.params.jobId);
-    if (!job || job.status !== 'completed') {
+    if (!job || (job.status !== 'completed' && job.status !== 'aborted')) {
         return res.status(404).json({ error: 'Results not ready' });
     }
 

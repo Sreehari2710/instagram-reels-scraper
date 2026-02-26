@@ -223,7 +223,7 @@ export default function ResultsView({ status, results, onDownload, onStop, onRes
                 </div>
 
                 <div className="flex gap-4">
-                    {status === 'completed' && (
+                    {(status === 'completed' || status === 'aborted') && (
                         <button
                             onClick={openDownloadModal}
                             className="bg-blue-600 text-white px-8 py-4 rounded-xl font-bold shadow-xl shadow-blue-100 hover:bg-blue-700 hover:-translate-y-1 transition-all flex items-center gap-2"
