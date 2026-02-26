@@ -85,34 +85,38 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 
         const headers = Object.keys(records[0]).map(h => h.trim());
 
-        let linkColumn = null;
+        let bestCol = null;
+        let maxScore = 0;
 
-        // 1. High Priority: Scan ALL columns for actual Instagram link patterns
         for (const col of headers) {
-            // Log sample values for debugging
-            const sample = records.slice(0, 3).map(r => r[col]).join(' | ');
-            log(`Checking column "${col}" (Samples: ${sample})`);
+            let score = 0;
+            const samples = records.slice(0, 100); // Check up to 100 rows for density
 
-            const isInstaCol = records.slice(0, 50).some(row => {
-                const val = (row[col] || "").toLowerCase();
-                // Match both /reel/ and /reels/ patterns
-                return val.includes('instagram.com/') && (val.includes('/reel/') || val.includes('/reels/') || val.includes('/p/') || val.includes('/tv/'));
+            samples.forEach(row => {
+                const val = (row[col] || "").toLowerCase().trim();
+                if (val.includes('instagram.com/')) {
+                    if (val.includes('/reel/') || val.includes('/reels/') || val.includes('/p/') || val.includes('/tv/')) {
+                        score += 10; // High score for direct post/reel links
+                    } else {
+                        score += 1; // Low score for profile links
+                    }
+                }
             });
-            if (isInstaCol) {
-                linkColumn = col;
-                log(`Pattern match found in column: "${col}"`);
-                break;
+
+            // Boost score if header contains "reel"
+            if (col.toLowerCase().includes('reel')) score += 5;
+
+            if (score > maxScore) {
+                maxScore = score;
+                bestCol = col;
+            }
+
+            if (score > 0) {
+                log(`Scored column "${col}": ${score}`);
             }
         }
 
-        // 2. Medium Priority: Scan headers for keywords
-        if (!linkColumn) {
-            linkColumn = headers.find(h => {
-                const lower = h.toLowerCase();
-                return lower.includes('reel') || lower === 'link' || lower === 'links' || lower.includes('url');
-            });
-            if (linkColumn) log(`Keyword match found in column: "${linkColumn}"`);
-        }
+        linkColumn = bestCol;
 
         // 3. Absolute Fallback: ONLY if keyword match failed and no pattern found
         if (!linkColumn) {

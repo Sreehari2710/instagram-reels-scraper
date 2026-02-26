@@ -25,13 +25,12 @@ class ApifyScraper {
         try {
             log(`Preparing to scrape ${links.length} reels...`);
             const runInput = {
-                "startUrls": links.map(url => ({ url })),
-                "username": [],
+                "username": links,
                 "resultsLimit": 1,
-                "includeDownloadedVideo": false,
-                "includeSharesCount": true,
+                "skipPinnedPosts": true,
+                "includeSharesCount": false,
                 "includeTranscript": false,
-                "skipPinnedPosts": true
+                "includeDownloadedVideo": false
             };
 
             log("Calling Apify start()...");
