@@ -22,6 +22,8 @@ const log = (msg) => {
     if (debugLogs.length > 200) debugLogs.shift();
 };
 
+log("=== Backend Script Initialized ===");
+
 // Health check for Render
 app.get('/', (req, res) => res.status(200).send('Instagram Scraper Backend is Running'));
 app.get('/health', (req, res) => res.status(200).send('OK'));
