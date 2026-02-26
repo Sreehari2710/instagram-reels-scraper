@@ -25,10 +25,13 @@ const log = (msg) => {
 log("=== Backend Script Initialized ===");
 
 // Health check for Render
-app.get('/', (req, res) => res.status(200).send('Instagram Scraper Backend is Running'));
+app.get('/', (req, res) => {
+    log("GET / requested");
+    res.status(200).send('Instagram Scraper Backend is Running');
+});
 app.get('/health', (req, res) => res.status(200).send('OK'));
 app.get('/ping', (req, res) => res.status(200).send('pong'));
-app.get('/debug-logs', (req, res) => res.status(200).send(debugLogs.join('\n')));
+app.get('/debug-logs', (req, res) => res.json({ logs: debugLogs, count: debugLogs.length }));
 
 // In-memory job storage
 const jobs = new Map();
