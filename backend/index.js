@@ -121,12 +121,12 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             createdAt: new Date()
         });
 
-        console.log(`Starting job ${jobId} with ${links.length} links`);
+        log(`Starting job ${jobId} with ${links.length} links`);
         processJob(jobId, links);
 
         res.json({ job_id: jobId, total: links.length });
     } catch (e) {
-        console.error('Upload failed:', e);
+        log(`Upload failed: ${e.message}`);
         res.status(500).json({ error: `Failed to parse CSV: ${e.message}` });
     }
 });
@@ -134,10 +134,11 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 async function processJob(jobId, links) {
     const job = jobs.get(jobId);
     try {
+        log(`Processing job ${jobId}...`);
         const scrapedResults = await scraper.scrapeReels(links, (itemCount, currentResults) => {
             job.progress = Math.min(itemCount, links.length);
             job.results = currentResults;
-        });
+        }, log); // Pass our log function to the scraper
 
         job.results = scrapedResults;
         job.progress = links.length;

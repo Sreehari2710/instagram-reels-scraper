@@ -11,8 +11,11 @@ class ApifyScraper {
         this.client = new ApifyClient({ token: apiToken });
     }
 
-    async scrapeReels(links, onProgress = null) {
-        const log = (msg) => console.log(`[Scraper] ${msg}`);
+    async scrapeReels(links, onProgress = null, externalLogger = null) {
+        const log = (msg) => {
+            console.log(`[Scraper] ${msg}`);
+            if (externalLogger) externalLogger(`[Scraper] ${msg}`);
+        };
 
         if (!this.client) {
             log("Error: Client not initialized");
