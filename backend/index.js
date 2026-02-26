@@ -14,6 +14,7 @@ app.use(cors());
 app.use(express.json());
 
 // Health check for Render
+app.get('/', (req, res) => res.status(200).send('Instagram Scraper Backend is Running'));
 app.get('/health', (req, res) => res.status(200).send('OK'));
 app.get('/ping', (req, res) => res.status(200).send('pong'));
 
