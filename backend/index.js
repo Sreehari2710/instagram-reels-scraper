@@ -83,15 +83,19 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             return res.status(400).json({ error: 'CSV is empty' });
         }
 
-        const headers = Object.keys(records[0]);
+        const headers = Object.keys(records[0]).map(h => h.trim());
 
         let linkColumn = null;
 
         // 1. High Priority: Scan ALL columns for actual Instagram link patterns
         for (const col of headers) {
-            const isInstaCol = records.slice(0, 10).some(row => {
+            // Log sample values for debugging
+            const sample = records.slice(0, 3).map(r => r[col]).join(' | ');
+            log(`Checking column "${col}" (Samples: ${sample})`);
+
+            const isInstaCol = records.slice(0, 50).some(row => {
                 const val = (row[col] || "").toLowerCase();
-                return val.includes('instagram.com/reels/') || val.includes('instagram.com/p/') || val.includes('instagram.com/tv/');
+                return val.includes('instagram.com/') && (val.includes('/reels/') || val.includes('/p/') || val.includes('/tv/'));
             });
             if (isInstaCol) {
                 linkColumn = col;
