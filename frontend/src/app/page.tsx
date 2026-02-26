@@ -140,8 +140,6 @@ export default function Home() {
         ) : (
           <ResultsView
             status={status}
-            progress={progress}
-            total={total}
             results={results}
             onDownload={handleDownload}
             onStop={handleStop}

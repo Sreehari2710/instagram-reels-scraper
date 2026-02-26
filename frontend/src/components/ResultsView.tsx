@@ -22,8 +22,6 @@ interface Result {
 
 interface ResultsViewProps {
     status: string;
-    progress: number;
-    total: number;
     results: Result[];
     onDownload: (fields?: string) => void;
     onStop: () => void;
@@ -31,9 +29,7 @@ interface ResultsViewProps {
     jobId: string | null;
 }
 
-export default function ResultsView({ status, progress, total, results, onDownload, onStop, onReset, jobId }: ResultsViewProps) {
-    const percent = total > 0 ? Math.round((progress / total) * 100) : 0;
-
+export default function ResultsView({ status, results, onDownload, onStop, onReset, jobId }: ResultsViewProps) {
     // Field Selection Modal State
     const [isModalOpen, setIsModalOpen] = React.useState(false);
     const [availableFields, setAvailableFields] = React.useState<{ id: string, label: string }[]>([]);
