@@ -124,7 +124,8 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 
         const links = records
             .map(r => (r[linkColumn] || "").trim())
-            .filter(l => l && l.includes('instagram.com/') && (l.includes('/reel/') || l.includes('/reels/') || l.includes('/p/') || l.includes('/tv/')));
+            .filter(l => l && l.includes('instagram.com/') && (l.includes('/reel/') || l.includes('/reels/') || l.includes('/p/') || l.includes('/tv/')))
+            .map(l => l.split('?')[0].replace(/\/$/, "")); // Strip tracking params and trailing slashes
 
         if (links.length === 0) {
             log(`ERROR: No valid Instagram Reel URLs found in column "${linkColumn}"`);
