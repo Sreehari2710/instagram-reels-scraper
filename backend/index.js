@@ -87,7 +87,9 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
-            records = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+            // raw: false forces it to extract formatted text/links
+            records = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: false });
         } else {
             return res.status(400).json({ error: 'Unsupported file format. Please upload a CSV or Excel file.' });
         }
