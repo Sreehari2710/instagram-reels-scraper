@@ -4,8 +4,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Instagram, ShieldCheck, Zap, Settings as SettingsIcon } from 'lucide-react';
 import UploadZone from '@/components/UploadZone';
+import DirectLinkInput from '@/components/DirectLinkInput';
 import ResultsView from '@/components/ResultsView';
 import SettingsModal from '@/components/SettingsModal';
+import { FileSpreadsheet, Keyboard } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -14,6 +16,7 @@ export default function Home() {
   const [status, setStatus] = useState<'idle' | 'uploading' | 'processing' | 'completed' | 'failed' | 'aborted' | 'awaiting_action'>('idle');
   const [results, setResults] = useState<any[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [inputMethod, setInputMethod] = useState<'file' | 'direct'>('file');
   const pollInterval = useRef<NodeJS.Timeout | null>(null);
 
   const handleUpload = async (file: File) => {
@@ -29,6 +32,20 @@ export default function Home() {
     } catch (error: any) {
       console.error("Upload failed", error);
       const errorMsg = error.response?.data?.error || `Upload failed. Make sure the backend reached at ${API_BASE_URL} is running.`;
+      alert(errorMsg);
+      setStatus('idle');
+    }
+  };
+
+  const handleDirectScrape = async (links: string[]) => {
+    setStatus('processing');
+    try {
+      const response = await axios.post(`${API_BASE_URL}/scrape-links`, { links });
+      setJobId(response.data.job_id);
+      startPolling(response.data.job_id);
+    } catch (error: any) {
+      console.error("Direct scrape failed", error);
+      const errorMsg = error.response?.data?.error || "Failed to start scrape. Please try again.";
       alert(errorMsg);
       setStatus('idle');
     }
@@ -118,19 +135,30 @@ export default function Home() {
       />
 
       <main className="py-12 px-6">
-        {status === 'idle' || status === 'uploading' ? (
+        {!jobId ? (
           <>
-            <div className="text-center mb-16 max-w-4xl mx-auto">
-              <h2 className="text-5xl md:text-7xl font-extrabold text-slate-900 mb-6 tracking-tight leading-tight">
-                Get Any Reel Data <br />
-                <span className="text-blue-600">Instantly</span>
-              </h2>
-              <p className="text-xl font-bold opacity-80 max-w-2xl mx-auto mt-6">
-                Paste your links in a CSV and we'll fetch the likes, views, captions, and more without any account login required.
-              </p>
+            <div className="flex justify-center mb-12">
+              <div className="bg-white p-1.5 rounded-2xl border border-slate-200 flex gap-1 shadow-sm">
+                <button
+                  onClick={() => setInputMethod('file')}
+                  className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${inputMethod === 'file' ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  <FileSpreadsheet size={18} /> File Upload
+                </button>
+                <button
+                  onClick={() => setInputMethod('direct')}
+                  className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${inputMethod === 'direct' ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  <Keyboard size={18} /> Quick Paste
+                </button>
+              </div>
             </div>
 
-            <UploadZone onUpload={handleUpload} isUploading={status === 'uploading'} />
+            {inputMethod === 'file' ? (
+              <UploadZone onUpload={handleUpload} isUploading={status === 'uploading'} />
+            ) : (
+              <DirectLinkInput onScrape={handleDirectScrape} isUploading={status === 'processing'} />
+            )}
           </>
         ) : (
           <ResultsView

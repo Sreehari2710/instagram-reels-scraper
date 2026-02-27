@@ -33,10 +33,11 @@ export default function UploadZone({ onUpload, isUploading }: UploadZoneProps) {
     };
 
     const validateAndSetFile = (file: File) => {
-        if (file.name.endsWith('.csv')) {
+        const name = file.name.toLowerCase();
+        if (name.endsWith('.csv') || name.endsWith('.xlsx') || name.endsWith('.xls')) {
             setSelectedFile(file);
         } else {
-            alert("Please upload a CSV file.");
+            alert("Please upload a CSV or Excel file.");
         }
     };
 
@@ -69,7 +70,7 @@ export default function UploadZone({ onUpload, isUploading }: UploadZoneProps) {
                     type="file"
                     ref={fileInputRef}
                     onChange={handleFileSelect}
-                    accept=".csv"
+                    accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
                     className="hidden"
                     disabled={isUploading}
                 />
@@ -122,8 +123,8 @@ export default function UploadZone({ onUpload, isUploading }: UploadZoneProps) {
                             <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 mb-8 border border-slate-100 group-hover:scale-110 group-hover:bg-blue-50 group-hover:text-blue-400 transition-all duration-500">
                                 <Upload size={44} />
                             </div>
-                            <h2 className="text-3xl font-extrabold text-slate-900 mb-4 tracking-tight">Drop your CSV here</h2>
-                            <p className="text-slate-500 font-medium mb-10 max-w-sm">Upload a sheet with reel links to instantly extract metrics and creator details.</p>
+                            <h2 className="text-3xl font-extrabold text-slate-900 mb-4 tracking-tight">Drop your File here</h2>
+                            <p className="text-slate-500 font-medium mb-10 max-w-sm">Upload a CSV or Excel sheet with reel links to instantly extract metrics.</p>
 
                             <div className="flex items-center gap-2 px-6 py-2 bg-slate-100 rounded-full text-[11px] font-bold text-slate-500 uppercase tracking-widest">
                                 <AlertCircle size={14} className="text-slate-400" />

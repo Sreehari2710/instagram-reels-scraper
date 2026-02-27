@@ -5,6 +5,7 @@ const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const { parse } = require('csv-parse/sync');
 const { stringify } = require('csv-stringify/sync');
+const XLSX = require('xlsx');
 const ApifyScraper = require('./scraper');
 
 const app = express();
@@ -72,15 +73,27 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     }
 
     try {
-        const content = req.file.buffer.toString();
-        const records = parse(content, {
-            columns: true,
-            skip_empty_lines: true,
-            trim: true
-        });
+        let records = [];
+        const filename = req.file.originalname.toLowerCase();
+
+        if (filename.endsWith('.csv')) {
+            const content = req.file.buffer.toString();
+            records = parse(content, {
+                columns: true,
+                skip_empty_lines: true,
+                trim: true
+            });
+        } else if (filename.endsWith('.xlsx') || filename.endsWith('.xls')) {
+            const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            records = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+        } else {
+            return res.status(400).json({ error: 'Unsupported file format. Please upload a CSV or Excel file.' });
+        }
 
         if (records.length === 0) {
-            return res.status(400).json({ error: 'CSV is empty' });
+            return res.status(400).json({ error: 'File is empty' });
         }
 
         const headers = Object.keys(records[0]).map(h => h.trim());
@@ -90,20 +103,19 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 
         for (const col of headers) {
             let score = 0;
-            const samples = records.slice(0, 100); // Check up to 100 rows for density
+            const samples = records.slice(0, 100);
 
             samples.forEach(row => {
-                const val = (row[col] || "").toLowerCase().trim();
+                const val = String(row[col] || "").toLowerCase().trim();
                 if (val.includes('instagram.com/')) {
                     if (val.includes('/reel/') || val.includes('/reels/') || val.includes('/p/') || val.includes('/tv/')) {
-                        score += 10; // High score for direct post/reel links
+                        score += 10;
                     } else {
-                        score += 1; // Low score for profile links
+                        score += 1;
                     }
                 }
             });
 
-            // Boost score if header contains "reel"
             if (col.toLowerCase().includes('reel')) score += 5;
 
             if (score > maxScore) {
@@ -116,20 +128,19 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             }
         }
 
-        linkColumn = bestCol;
+        const linkColumn = bestCol;
 
-        // 3. Absolute Fallback: ONLY if keyword match failed and no pattern found
         if (!linkColumn) {
             log(`CRITICAL: No column with Instagram links detected in the entire file.`);
-            return res.status(400).json({ error: "Could not find a column containing Instagram links. Please ensure your CSV has a column with links like 'https://www.instagram.com/reel/...' or starts with a header like 'Reel Link'." });
+            return res.status(400).json({ error: "Could not find a column containing Instagram links. Please ensure your file has a column with links like 'https://www.instagram.com/reel/...' or starts with a header like 'Reel Link'." });
         }
 
         log(`Final selection: Column "${linkColumn}" will be used for scraping.`);
 
         const links = records
-            .map(r => (r[linkColumn] || "").trim())
+            .map(r => String(r[linkColumn] || "").trim())
             .filter(l => l && l.includes('instagram.com/') && (l.includes('/reel/') || l.includes('/reels/') || l.includes('/p/') || l.includes('/tv/')))
-            .map(l => l.split('?')[0].replace(/\/$/, "")); // Strip tracking params and trailing slashes
+            .map(l => l.split('?')[0].replace(/\/$/, ""));
 
         if (links.length === 0) {
             log(`ERROR: No valid Instagram Reel URLs found in column "${linkColumn}"`);
@@ -187,19 +198,59 @@ app.get('/status/:jobId', (req, res) => {
 });
 
 app.post('/stop/:jobId', async (req, res) => {
-    const jobId = req.params.jobId;
-    const job = jobs.get(jobId);
-    if (!job) return res.status(404).json({ error: 'Job not found' });
-
+    const { jobId } = req.params;
+    log(`Stop request received for job ${jobId}`);
     try {
+        const job = jobs.get(jobId);
+        if (!job) return res.status(404).json({ error: 'Job not found' });
+
         if (job.runId) {
-            log(`Stopping job ${jobId} (Apify Run: ${job.runId})...`);
             await scraper.abortRun(job.runId);
         }
+
         job.status = 'aborted';
         res.json({ success: true, message: "Job stopped" });
     } catch (e) {
         log(`Failed to stop job ${jobId}: ${e.message}`);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/scrape-links', async (req, res) => {
+    log('Direct links scrape request received');
+    const { links: rawLinks } = req.body;
+
+    if (!rawLinks || !Array.isArray(rawLinks) || rawLinks.length === 0) {
+        return res.status(400).json({ error: 'No links provided' });
+    }
+
+    try {
+        const links = rawLinks
+            .map(l => String(l || "").trim())
+            .filter(l => l && l.includes('instagram.com/') && (l.includes('/reel/') || l.includes('/reels/') || l.includes('/p/') || l.includes('/tv/')))
+            .map(l => l.split('?')[0].replace(/\/$/, ""));
+
+        if (links.length === 0) {
+            return res.status(400).json({ error: 'No valid Instagram Reel URLs found in the provided list.' });
+        }
+
+        const jobId = uuidv4();
+        const records = links.map(l => ({ "Input URL": l }));
+
+        jobs.set(jobId, {
+            status: 'processing',
+            results: [],
+            total: links.length,
+            progress: 0,
+            originalRows: records,
+            linkColumn: "Input URL",
+            createdAt: new Date()
+        });
+
+        processJob(jobId, links);
+        res.json({ job_id: jobId, total: links.length });
+    } catch (e) {
+        log(`Error creating manual job: ${e.message}`);
         res.status(500).json({ error: e.message });
     }
 });
