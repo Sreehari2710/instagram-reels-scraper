@@ -11,6 +11,7 @@ interface DirectLinkInputProps {
 
 export default function DirectLinkInput({ onScrape, isUploading }: DirectLinkInputProps) {
     const [linksText, setLinksText] = useState("");
+    const [showAlert, setShowAlert] = useState(false);
 
     const handleStart = () => {
         const links = linksText
@@ -26,7 +27,7 @@ export default function DirectLinkInput({ onScrape, isUploading }: DirectLinkInp
         const invalidLinks = links.filter(l => !l.includes('instagram.com/') || (!l.includes('/reel/') && !l.includes('/reels/') && !l.includes('/p/') && !l.includes('/tv/')));
 
         if (invalidLinks.length > 0) {
-            alert("Invalid link(s) detected. Please ensure all links are valid Instagram URLs (e.g., containing /reel/, /reels/, /p/, or /tv/).");
+            setShowAlert(true);
             return;
         }
 
@@ -35,6 +36,31 @@ export default function DirectLinkInput({ onScrape, isUploading }: DirectLinkInp
 
     return (
         <div className="w-full max-w-3xl mx-auto">
+            {showAlert && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative"
+                    >
+                        <div className="w-12 h-12 bg-red-100 text-red-500 rounded-full flex items-center justify-center mb-4 mx-auto">
+                            <AlertCircle size={28} />
+                        </div>
+                        <h3 className="text-xl font-extrabold text-slate-900 mb-2 text-center">Invalid Links Detected</h3>
+                        <p className="text-slate-500 text-center mb-8">
+                            Please ensure all links are valid Instagram URLs (e.g., containing <code className="bg-slate-100 text-red-500 px-1 py-0.5 rounded">/reel/</code>, <code className="bg-slate-100 text-red-500 px-1 py-0.5 rounded">/reels/</code>, <code className="bg-slate-100 text-red-500 px-1 py-0.5 rounded">/p/</code>, or <code className="bg-slate-100 text-red-500 px-1 py-0.5 rounded">/tv/</code>).
+                        </p>
+                        <button
+                            onClick={() => setShowAlert(false)}
+                            className="w-full bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold py-3 rounded-xl transition-colors"
+                        >
+                            Got It
+                        </button>
+                    </motion.div>
+                </div>
+            )}
+
             <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
                 <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500">
