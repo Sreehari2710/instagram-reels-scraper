@@ -108,7 +108,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             samples.forEach(row => {
                 const val = String(row[col] || "").toLowerCase().trim();
                 if (val.includes('instagram.com/')) {
-                    if (val.includes('/reel/') || val.includes('/reels/')) {
+                    if (val.includes('/reel/') || val.includes('/reels/') || val.includes('/p/') || val.includes('/tv/')) {
                         score += 10;
                     } else {
                         score += 1;
@@ -139,7 +139,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 
         const links = records
             .map(r => String(r[linkColumn] || "").trim())
-            .filter(l => l && l.includes('instagram.com/') && (l.includes('/reel/') || l.includes('/reels/')))
+            .filter(l => l && l.includes('instagram.com/') && (l.includes('/reel/') || l.includes('/reels/') || l.includes('/p/') || l.includes('/tv/')))
             .map(l => l.split('?')[0].replace(/\/$/, ""));
 
         if (links.length === 0) {
@@ -227,7 +227,7 @@ app.post('/scrape-links', async (req, res) => {
     try {
         const links = rawLinks
             .map(l => String(l || "").trim())
-            .filter(l => l && l.includes('instagram.com/') && (l.includes('/reel/') || l.includes('/reels/')))
+            .filter(l => l && l.includes('instagram.com/') && (l.includes('/reel/') || l.includes('/reels/') || l.includes('/p/') || l.includes('/tv/')))
             .map(l => l.split('?')[0].replace(/\/$/, ""));
 
         if (links.length === 0) {

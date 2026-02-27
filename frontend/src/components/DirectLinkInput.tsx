@@ -23,10 +23,10 @@ export default function DirectLinkInput({ onScrape, isUploading }: DirectLinkInp
             return;
         }
 
-        const invalidLinks = links.filter(l => !l.includes('instagram.com/') || (!l.includes('/reel/') && !l.includes('/reels/')));
+        const invalidLinks = links.filter(l => !l.includes('instagram.com/') || (!l.includes('/reel/') && !l.includes('/reels/') && !l.includes('/p/') && !l.includes('/tv/')));
 
         if (invalidLinks.length > 0) {
-            alert("Please ensure all links are valid Instagram Reel URLs (containing /reel/ or /reels/). Other Instagram links like /p/ or /tv/ are not supported.");
+            alert("Invalid link(s) detected. Please ensure all links are valid Instagram URLs (e.g., containing /reel/, /reels/, /p/, or /tv/).");
             return;
         }
 
