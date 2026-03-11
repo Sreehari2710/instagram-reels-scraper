@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Download, ExternalLink, CheckCircle2, XCircle, Loader2, AlertTriangle, RefreshCw, Check, Info, ChevronDown, Trash2 } from 'lucide-react';
+import { Download, ExternalLink, XCircle, Loader2, RefreshCw, Check, Info, ChevronDown } from 'lucide-react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -14,6 +14,7 @@ interface Result {
     videoplaycount?: number | string;
     caption?: string;
     comments?: number | string;
+    shares?: number | string;
     error?: string;
     year?: string;
     month?: string;
@@ -117,7 +118,7 @@ export default function ResultsView({ status, results, onDownload, onStop, onRes
                                                 );
                                             })}
                                             {selectedFields.length === 0 && (
-                                                <div className="text-slate-400 font-medium text-xs py-2 italic">None yet—pick from the list below</div>
+                                                <div className="text-slate-400 font-medium text-xs py-2 italic">None yet&mdash;pick from the list below</div>
                                             )}
                                         </div>
 
@@ -169,7 +170,7 @@ export default function ResultsView({ status, results, onDownload, onStop, onRes
                                                                 </button>
                                                             ))}
                                                         {availableFields.filter(f => f.label.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
-                                                            <div className="p-8 text-center text-slate-400 text-xs font-medium">No fields found matching "{searchTerm}"</div>
+                                                            <div className="p-8 text-center text-slate-400 text-xs font-medium">No fields found matching &quot;{searchTerm}&quot;</div>
                                                         )}
                                                     </div>
                                                 </motion.div>
@@ -291,6 +292,10 @@ export default function ResultsView({ status, results, onDownload, onStop, onRes
                                         <div className="flex flex-col items-center">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase">Comments</span>
                                             <span className="font-bold text-slate-700">{result.comments || 0}</span>
+                                        </div>
+                                        <div className="flex flex-col items-center border-l border-slate-100 pl-4">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase">Shares</span>
+                                            <span className="font-bold text-slate-700">{result.shares || 0}</span>
                                         </div>
                                     </div>
                                 </td>

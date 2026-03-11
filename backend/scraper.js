@@ -40,7 +40,7 @@ class ApifyScraper {
                 "username": links,
                 "resultsLimit": 1,
                 "skipPinnedPosts": true,
-                "includeSharesCount": false,
+                "includeSharesCount": true,
                 "includeTranscript": false,
                 "includeDownloadedVideo": false
             };
@@ -124,6 +124,7 @@ class ApifyScraper {
                     caption: matchedItem.caption || "",
                     likes: matchedItem.likesCount || 0,
                     comments: matchedItem.commentsCount || 0,
+                    shares: matchedItem.sharesCount || 0,
                     videoplaycount: matchedItem.videoPlayCount || 0,
                     year, month, date,
                     status: "success"

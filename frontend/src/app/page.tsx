@@ -2,19 +2,34 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Instagram, ShieldCheck, Zap, Settings as SettingsIcon } from 'lucide-react';
+import { Instagram, FileSpreadsheet, Keyboard } from 'lucide-react';
 import UploadZone from '@/components/UploadZone';
 import DirectLinkInput from '@/components/DirectLinkInput';
 import ResultsView from '@/components/ResultsView';
 import SettingsModal from '@/components/SettingsModal';
-import { FileSpreadsheet, Keyboard } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+interface Result {
+  link: string;
+  status: string;
+  username?: string;
+  full_name?: string;
+  likes?: number | string;
+  videoplaycount?: number | string;
+  caption?: string;
+  comments?: number | string;
+  shares?: number | string;
+  error?: string;
+  year?: string;
+  month?: string;
+  date?: string;
+}
 
 export default function Home() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'uploading' | 'processing' | 'completed' | 'failed' | 'aborted' | 'awaiting_action'>('idle');
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<Result[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [inputMethod, setInputMethod] = useState<'file' | 'direct'>('file');
   const pollInterval = useRef<NodeJS.Timeout | null>(null);
@@ -29,9 +44,12 @@ export default function Home() {
       setJobId(response.data.job_id);
       setStatus('processing');
       startPolling(response.data.job_id);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Upload failed", error);
-      const errorMsg = error.response?.data?.error || `Upload failed. Make sure the backend reached at ${API_BASE_URL} is running.`;
+      let errorMsg = "Upload failed. Please try again.";
+      if (axios.isAxiosError(error)) {
+        errorMsg = error.response?.data?.error || `Upload failed. Make sure the backend reached at ${API_BASE_URL} is running.`;
+      }
       alert(errorMsg);
       setStatus('idle');
     }
@@ -43,9 +61,12 @@ export default function Home() {
       const response = await axios.post(`${API_BASE_URL}/scrape-links`, { links });
       setJobId(response.data.job_id);
       startPolling(response.data.job_id);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Direct scrape failed", error);
-      const errorMsg = error.response?.data?.error || "Failed to start scrape. Please try again.";
+      let errorMsg = "Failed to start scrape. Please try again.";
+      if (axios.isAxiosError(error)) {
+        errorMsg = error.response?.data?.error || errorMsg;
+      }
       alert(errorMsg);
       setStatus('idle');
     }
@@ -96,13 +117,6 @@ export default function Home() {
     }
   };
 
-  const handleReset = () => {
-    setJobId(null);
-    setStatus('idle');
-    setStatus('idle');
-    setResults([]);
-    if (pollInterval.current) clearInterval(pollInterval.current);
-  };
 
   useEffect(() => {
     return () => {
@@ -170,6 +184,7 @@ export default function Home() {
               setJobId(null);
               setStatus('idle');
               setResults([]);
+              if (pollInterval.current) clearInterval(pollInterval.current);
             }}
             jobId={jobId}
           />

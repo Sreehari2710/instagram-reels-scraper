@@ -265,6 +265,7 @@ app.get('/fields', (req, res) => {
         { id: "caption", label: "Caption" },
         { id: "likes", label: "Likes" },
         { id: "comments", label: "Comments" },
+        { id: "shares", label: "Shares" },
         { id: "videoplaycount", label: "Video Play Count" },
         { id: "year", label: "Year" },
         { id: "month", label: "Month" },
@@ -292,7 +293,8 @@ app.get('/download/:jobId', (req, res) => {
 
         const mergedRow = { ...row };
         selectedFields.forEach(f => {
-            mergedRow[f] = result && result[f] ? result[f] : "";
+            const val = result && result[f];
+            mergedRow[f] = (val !== undefined && val !== null) ? val : "";
         });
         return mergedRow;
     });
