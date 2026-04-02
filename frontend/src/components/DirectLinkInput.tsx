@@ -7,9 +7,10 @@ import { motion } from 'framer-motion';
 interface DirectLinkInputProps {
     onScrape: (links: string[]) => void;
     isUploading: boolean;
+    allowProfiles?: boolean;
 }
 
-export default function DirectLinkInput({ onScrape, isUploading }: DirectLinkInputProps) {
+export default function DirectLinkInput({ onScrape, isUploading, allowProfiles = false }: DirectLinkInputProps) {
     const [linksText, setLinksText] = useState("");
     const [showAlert, setShowAlert] = useState(false);
 
@@ -24,7 +25,12 @@ export default function DirectLinkInput({ onScrape, isUploading }: DirectLinkInp
             return;
         }
 
-        const invalidLinks = links.filter(l => !l.includes('instagram.com/') || (!l.includes('/reel/') && !l.includes('/reels/') && !l.includes('/p/') && !l.includes('/tv/')));
+        const invalidLinks = links.filter(l => {
+            if (allowProfiles) {
+                return false; // The backend now smartly handles @usernames, raw text, and profile links. Trust the backend entirely for stats.
+            }
+            return !l.includes('instagram.com/') || (!l.includes('/reel/') && !l.includes('/reels/') && !l.includes('/p/') && !l.includes('/tv/'));
+        });
 
         if (invalidLinks.length > 0) {
             setShowAlert(true);
@@ -49,7 +55,11 @@ export default function DirectLinkInput({ onScrape, isUploading }: DirectLinkInp
                         </div>
                         <h3 className="text-xl font-extrabold text-slate-900 mb-2 text-center">Invalid Links Detected</h3>
                         <p className="text-slate-500 text-center mb-8">
-                            Please ensure all links are valid Instagram URLs (e.g., containing <code className="bg-slate-100 text-red-500 px-1 py-0.5 rounded">/reel/</code>, <code className="bg-slate-100 text-red-500 px-1 py-0.5 rounded">/reels/</code>, <code className="bg-slate-100 text-red-500 px-1 py-0.5 rounded">/p/</code>, or <code className="bg-slate-100 text-red-500 px-1 py-0.5 rounded">/tv/</code>).
+                            {!allowProfiles ? (
+                                <>Please ensure all links are valid Instagram URLs (e.g., containing <code className="bg-slate-100 text-red-500 px-1 py-0.5 rounded">/reel/</code>, <code className="bg-slate-100 text-red-500 px-1 py-0.5 rounded">/reels/</code>, <code className="bg-slate-100 text-red-500 px-1 py-0.5 rounded">/p/</code>, or <code className="bg-slate-100 text-red-500 px-1 py-0.5 rounded">/tv/</code>).</>
+                            ) : (
+                                <>Please ensure your inputs are either valid Instagram URLs or usernames.</>
+                            )}
                         </p>
                         <button
                             onClick={() => setShowAlert(false)}
@@ -75,7 +85,7 @@ export default function DirectLinkInput({ onScrape, isUploading }: DirectLinkInp
                 <textarea
                     value={linksText}
                     onChange={(e) => setLinksText(e.target.value)}
-                    placeholder="https://www.instagram.com/reel/C7...&#10;https://www.instagram.com/reels/Xyz..."
+                    placeholder={allowProfiles ? "https://www.instagram.com/username\n@another_username\njust_username" : "https://www.instagram.com/reel/C7...\nhttps://www.instagram.com/reels/Xyz..."}
                     className="w-full h-48 p-5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all outline-none resize-none font-mono text-sm mb-6"
                     disabled={isUploading}
                 />

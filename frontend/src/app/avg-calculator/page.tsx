@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Instagram, FileSpreadsheet, Keyboard } from 'lucide-react';
+import { Instagram, FileSpreadsheet, Keyboard, BarChart2 } from 'lucide-react';
 import UploadZone from '@/components/UploadZone';
 import DirectLinkInput from '@/components/DirectLinkInput';
-import ResultsView from '@/components/ResultsView';
+import ResultsViewAvg from '@/components/ResultsViewAvg';
 import SettingsModal from '@/components/SettingsModal';
 import Link from 'next/link';
 
@@ -16,18 +16,13 @@ interface Result {
   status: string;
   username?: string;
   full_name?: string;
-  likes?: number | string;
-  videoplaycount?: number | string;
-  caption?: string;
-  comments?: number | string;
-  shares?: number | string;
+  reels_scraped?: number;
+  avg_comments?: number | string;
+  avg_videoplaycount?: number | string;
   error?: string;
-  year?: string;
-  month?: string;
-  date?: string;
 }
 
-export default function Home() {
+export default function AverageStatsCalculator() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'uploading' | 'processing' | 'completed' | 'failed' | 'aborted' | 'awaiting_action'>('idle');
   const [results, setResults] = useState<Result[]>([]);
@@ -41,7 +36,7 @@ export default function Home() {
     formData.append('file', file);
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/upload`, formData);
+      const response = await axios.post(`${API_BASE_URL}/upload-avg`, formData);
       setJobId(response.data.job_id);
       setStatus('processing');
       startPolling(response.data.job_id);
@@ -59,7 +54,7 @@ export default function Home() {
   const handleDirectScrape = async (links: string[]) => {
     setStatus('processing');
     try {
-      const response = await axios.post(`${API_BASE_URL}/scrape-links`, { links });
+      const response = await axios.post(`${API_BASE_URL}/scrape-links-avg`, { links });
       setJobId(response.data.job_id);
       startPolling(response.data.job_id);
     } catch (error: unknown) {
@@ -127,7 +122,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
       <header className="bg-white border-b border-slate-200 px-6 py-4 flex flex-col md:flex-row items-center justify-between sticky top-0 z-50 shadow-sm gap-4">
         <div className="flex items-center gap-3">
           <div className="neo-box bg-white p-2">
@@ -140,10 +134,10 @@ export default function Home() {
         </div>
 
         <div className="flex bg-slate-100 p-1 rounded-xl">
-            <Link href="/" className="px-6 py-2 rounded-lg text-sm font-bold bg-white text-blue-600 shadow-sm">
+            <Link href="/" className="px-6 py-2 rounded-lg text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors">
                 Single Reel Data
             </Link>
-            <Link href="/avg-calculator" className="px-6 py-2 rounded-lg text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors">
+            <Link href="/avg-calculator" className="px-6 py-2 rounded-lg text-sm font-bold bg-white text-blue-600 shadow-sm">
                 Average Stats Calc
             </Link>
         </div>
@@ -155,6 +149,13 @@ export default function Home() {
       />
 
       <main className="py-12 px-6">
+        <div className="max-w-3xl mx-auto text-center mb-10">
+            <h2 className="text-2xl font-bold text-slate-800 flex items-center justify-center gap-2 mb-2">
+                <BarChart2 className="text-blue-500"/> Compute Average Account Metrics
+            </h2>
+            <p className="text-slate-500">Paste instagram profile links or upload a CSV with profile links. Based on your settings, this will scrape the last 10 reels of each account and calculate average comments and views.</p>
+        </div>
+
         {!jobId ? (
           <>
             <div className="flex justify-center mb-12">
@@ -177,11 +178,11 @@ export default function Home() {
             {inputMethod === 'file' ? (
               <UploadZone onUpload={handleUpload} isUploading={status === 'uploading'} />
             ) : (
-              <DirectLinkInput onScrape={handleDirectScrape} isUploading={status === 'processing'} />
+              <DirectLinkInput onScrape={handleDirectScrape} isUploading={status === 'processing'} allowProfiles={true} />
             )}
           </>
         ) : (
-          <ResultsView
+          <ResultsViewAvg
             status={status}
             results={results}
             onDownload={handleDownload}
@@ -197,7 +198,6 @@ export default function Home() {
         )}
       </main>
 
-      {/* Footer */}
       <footer className="border-t border-slate-200 p-10 bg-white mt-20">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <p className="font-medium text-slate-400 text-sm">© 2026 VUDUCOM INTERNAL TOOLS</p>

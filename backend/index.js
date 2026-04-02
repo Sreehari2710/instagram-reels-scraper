@@ -306,6 +306,176 @@ app.get('/download/:jobId', (req, res) => {
     res.send(csv);
 });
 
+async function processJobAvg(jobId, links) {
+    const job = jobs.get(jobId);
+    try {
+        log(`Processing avg job ${jobId}...`);
+        const scrapedResults = await scraper.scrapeAverageStats(links, (itemCount, currentResults) => {
+            job.progress = Math.min(itemCount, links.length * 10);
+            job.results = currentResults;
+        }, log, (runId) => {
+            job.runId = runId;
+        });
+
+        job.results = scrapedResults;
+        job.progress = links.length * 10;
+        job.status = 'completed';
+        console.log(`Job ${jobId} completed successfully`);
+    } catch (e) {
+        console.error(`Job ${jobId} failed:`, e);
+        job.status = 'failed';
+        job.error = e.message;
+    }
+}
+
+app.post('/upload-avg', upload.single('file'), async (req, res) => {
+    log('Upload-avg request received');
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    try {
+        let records = [];
+        const filename = req.file.originalname.toLowerCase();
+
+        if (filename.endsWith('.csv')) {
+            const content = req.file.buffer.toString();
+            records = parse(content, { columns: true, skip_empty_lines: true, trim: true });
+        } else if (filename.endsWith('.xlsx') || filename.endsWith('.xls')) {
+            const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            records = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: false });
+        } else {
+            return res.status(400).json({ error: 'Unsupported file format.' });
+        }
+
+        if (records.length === 0) return res.status(400).json({ error: 'File is empty' });
+
+        const headers = Object.keys(records[0]).map(h => h.trim());
+        let bestCol = null;
+        let maxScore = 0;
+
+        for (const col of headers) {
+            let score = 0;
+            const isProfileCol = col.toLowerCase().includes('profile') || col.toLowerCase().includes('username') || col.toLowerCase().includes('handle');
+            if (isProfileCol) score += 50;
+
+            const samples = records.slice(0, 100);
+            samples.forEach(row => {
+                const val = String(row[col] || "").toLowerCase().trim();
+                if (val.includes('instagram.com/')) {
+                    if (val.includes('/reel/') || val.includes('/reels/') || val.includes('/p/') || val.includes('/tv/')) {
+                        score += 1; // Not a pure profile link
+                    } else {
+                        score += 10; // Direct profile link
+                    }
+                } else if (val.startsWith('@')) {
+                    score += 5; // likely username handle
+                } else if (isProfileCol && val.length > 0 && !val.includes(' ')) {
+                    score += 2; // plain username
+                }
+            });
+            if (col.toLowerCase().includes('url') || col.toLowerCase().includes('link')) score += 5;
+
+            if (score > maxScore) {
+                maxScore = score;
+                bestCol = col;
+            }
+        }
+
+        const linkColumn = bestCol;
+        if (!linkColumn) {
+            return res.status(400).json({ error: "Could not find a column containing Instagram links." });
+        }
+
+        const links = records
+            .map(r => String(r[linkColumn] || "").trim())
+            .map(l => {
+                if (l.includes('instagram.com/') || l.includes('http')) {
+                    return l.split('?')[0].replace(/\/$/, "");
+                }
+                return l.replace(/^@/, "").trim(); // strip the @ to standardise username format
+            })
+            .filter(l => l.length > 0);
+
+        if (links.length === 0) {
+            return res.status(400).json({ error: `No valid Instagram URLs or Usernames found in column "${linkColumn}".` });
+        }
+
+        const jobId = uuidv4();
+        jobs.set(jobId, {
+            status: 'processing',
+            progress: 0,
+            total: links.length * 10,
+            results: [],
+            originalRows: records,
+            linkColumn: linkColumn,
+            createdAt: new Date()
+        });
+
+        processJobAvg(jobId, links);
+        res.json({ job_id: jobId, total: links.length });
+    } catch (e) {
+        log(`Upload-avg failed: ${e.message}`);
+        res.status(500).json({ error: `Failed to parse file: ${e.message}` });
+    }
+});
+
+app.post('/scrape-links-avg', async (req, res) => {
+    log('Direct scrape-links-avg request received');
+    const { links: rawLinks } = req.body;
+
+    if (!rawLinks || !Array.isArray(rawLinks) || rawLinks.length === 0) {
+        return res.status(400).json({ error: 'No links provided' });
+    }
+
+    try {
+        const links = rawLinks
+            .map(l => String(l || "").trim())
+            .map(l => {
+                if (l.includes('instagram.com/') || l.includes('http')) {
+                    return l.split('?')[0].replace(/\/$/, "");
+                }
+                return l.replace(/^@/, "").trim();
+            })
+            .filter(l => l.length > 0);
+
+        if (links.length === 0) {
+            return res.status(400).json({ error: 'No valid Instagram URLs or Usernames found in the provided list.' });
+        }
+
+        const jobId = uuidv4();
+        const records = links.map(l => ({ "Input URL": l }));
+
+        jobs.set(jobId, {
+            status: 'processing',
+            results: [],
+            total: links.length * 10,
+            progress: 0,
+            originalRows: records,
+            linkColumn: "Input URL",
+            createdAt: new Date()
+        });
+
+        processJobAvg(jobId, links);
+        res.json({ job_id: jobId, total: links.length });
+    } catch (e) {
+        log(`Error creating manual job avg: ${e.message}`);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/fields-avg', (req, res) => {
+    res.json([
+        { id: "username", label: "Username" },
+        { id: "full_name", label: "Full Name" },
+        { id: "reels_scraped", label: "Reels Scraped" },
+        { id: "avg_comments", label: "Avg Comments" },
+        { id: "avg_videoplaycount", label: "Avg Views" }
+    ]);
+});
+
 const server = app.listen(port, () => {
     console.log(`=========================================`);
     console.log(`🚀 Instagram Scraper Backend is ACTIVE`);
