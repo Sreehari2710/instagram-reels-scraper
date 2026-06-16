@@ -36,7 +36,18 @@ app.get('/debug-logs', (req, res) => res.json({ logs: debugLogs, count: debugLog
 
 // In-memory job storage
 const jobs = new Map();
+
+// Single reel scraper — uses one dedicated key
 const scraper = new ApifyScraper(process.env.APIFY_API_TOKEN);
+
+// Avg stats scraper — pool of up to 5 keys with rotation + resume
+const avgApiTokens = [
+    process.env.APIFY_API_TOKEN_AVG_1,
+    process.env.APIFY_API_TOKEN_AVG_2,
+    process.env.APIFY_API_TOKEN_AVG_3,
+    process.env.APIFY_API_TOKEN_AVG_4,
+    process.env.APIFY_API_TOKEN_AVG_5
+].filter(t => t && !t.includes('your_avg_api_key'));
 
 // Multer setup for CSV upload
 const upload = multer({ storage: multer.memoryStorage() });
@@ -309,13 +320,20 @@ app.get('/download/:jobId', (req, res) => {
 async function processJobAvg(jobId, links) {
     const job = jobs.get(jobId);
     try {
-        log(`Processing avg job ${jobId}...`);
-        const scrapedResults = await scraper.scrapeAverageStats(links, (itemCount, currentResults) => {
-            job.progress = Math.min(itemCount, links.length * 10);
-            job.results = currentResults;
-        }, log, (runId) => {
-            job.runId = runId;
-        });
+        log(`Processing avg job ${jobId} with ${avgApiTokens.length} API key(s)...`);
+        const scrapedResults = await scraper.scrapeAverageStatsWithRotation(
+            links,
+            avgApiTokens,
+            (itemCount, currentResults) => {
+                job.progress = Math.min(itemCount, links.length * 10);
+                job.results = currentResults;
+            },
+            log,
+            (keyIndex) => {
+                job.currentKeyIndex = keyIndex + 1;
+                log(`Job ${jobId} switched to API key ${keyIndex + 1}/${avgApiTokens.length}`);
+            }
+        );
 
         job.results = scrapedResults;
         job.progress = links.length * 10;

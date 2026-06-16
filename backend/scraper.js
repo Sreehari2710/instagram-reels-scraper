@@ -218,6 +218,162 @@ class ApifyScraper {
         }
     }
 
+    async scrapeAverageStatsWithRotation(links, apiTokens = [], onProgress = null, externalLogger = null, onKeySwitch = null) {
+        const log = (msg) => {
+            console.log(`[Scraper-Avg-Rotation] ${msg}`);
+            if (externalLogger) externalLogger(`[Scraper-Avg-Rotation] ${msg}`);
+        };
+
+        if (!apiTokens || apiTokens.length === 0) {
+            log("Error: No API tokens provided for rotation pool");
+            return links.map(link => ({ link, status: 'failed', error: 'No Apify API tokens configured for avg scraper' }));
+        }
+
+        const accumulatedResults = new Map(); // username/link → result
+        let remainingLinks = [...links];
+
+        for (let keyIndex = 0; keyIndex < apiTokens.length; keyIndex++) {
+            const token = apiTokens[keyIndex];
+            if (!token || token.includes('your_avg_api_key')) {
+                log(`Skipping key ${keyIndex + 1} — not configured`);
+                continue;
+            }
+
+            if (remainingLinks.length === 0) {
+                log("All accounts scraped, stopping early.");
+                break;
+            }
+
+            log(`Using API key ${keyIndex + 1}/${apiTokens.length} for ${remainingLinks.length} remaining accounts`);
+            if (onKeySwitch) onKeySwitch(keyIndex);
+
+            const client = new (require('apify-client').ApifyClient)({ token });
+
+            try {
+                const apifyUsernames = remainingLinks.map(link => {
+                    let s = link.split('?')[0].replace(/\/$/, "");
+                    if (s.includes('instagram.com/') || s.includes('instagr.am/')) {
+                        try {
+                            if (!s.startsWith('http')) s = 'https://' + s;
+                            const urlObj = new URL(s);
+                            const parts = urlObj.pathname.split('/').filter(p => p.length > 0);
+                            if (parts.length > 0) {
+                                const firstPart = parts[0];
+                                if (!['p', 'reel', 'reels', 'tv', 'explore', 'stories'].includes(firstPart.toLowerCase())) {
+                                    return firstPart;
+                                }
+                            }
+                        } catch (e) {}
+                    }
+                    return s.replace(/^@/, "").trim();
+                });
+
+                const runInput = {
+                    "username": apifyUsernames,
+                    "resultsLimit": 10,
+                    "skipPinnedPosts": true,
+                    "includeSharesCount": false,
+                    "includeTranscript": false,
+                    "includeDownloadedVideo": false
+                };
+
+                log("Calling Apify start()...");
+                const run = await client.actor("apify/instagram-reel-scraper").start(runInput);
+                const runId = run.id;
+                const datasetId = run.defaultDatasetId;
+                log(`Run started. ID: ${runId} | Dataset: ${datasetId}`);
+
+                let finished = false;
+                let lastItems = [];
+                while (!finished) {
+                    log(`Polling run ${runId}...`);
+                    const currentRun = await client.run(runId).get();
+                    const itemCount = currentRun.itemCount || 0;
+                    const status = currentRun.status;
+                    log(`Status: ${status} | Items: ${itemCount}`);
+
+                    const { items } = await client.dataset(datasetId).listItems({ limit: 1000 });
+                    lastItems = items;
+
+                    // Merge completed results so far
+                    this._mergeAvgResults(links, items, accumulatedResults);
+
+                    if (onProgress) {
+                        const merged = this._buildAvgResultsFromMap(links, accumulatedResults);
+                        onProgress(accumulatedResults.size * 10, merged);
+                    }
+
+                    if (['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'].includes(status)) {
+                        finished = true;
+                        log(`Run ended with status: ${status}`);
+                    } else {
+                        await new Promise(res => setTimeout(res, 5000));
+                    }
+                }
+
+                // Final merge after run ends
+                this._mergeAvgResults(links, lastItems, accumulatedResults);
+
+                // Determine which links still have no results → remainingLinks for next key
+                remainingLinks = links.filter(link => !accumulatedResults.has(this._normalizeLink(link)));
+                log(`After key ${keyIndex + 1}: ${accumulatedResults.size} done, ${remainingLinks.length} remaining`);
+
+            } catch (e) {
+                log(`Key ${keyIndex + 1} failed: ${e.message}. Switching to next key if available.`);
+                // remainingLinks stays as-is so next key picks up from where we left off
+            }
+        }
+
+        return this._buildAvgResultsFromMap(links, accumulatedResults);
+    }
+
+    _normalizeLink(link) {
+        return link.split('?')[0].replace(/\/$/, "").toLowerCase().replace(/^@/, "");
+    }
+
+    _mergeAvgResults(links, items, accumulatedResults) {
+        links.forEach(link => {
+            const cleanOriginal = this._normalizeLink(link);
+            if (accumulatedResults.has(cleanOriginal)) return; // already done
+
+            const matchedItems = items.filter(item => {
+                const inputUrl = (item.inputUrl || "").split('?')[0].replace(/\/$/, "");
+                const ownerUsername = (item.ownerUsername || "").toLowerCase();
+                const isMatch =
+                    (inputUrl && inputUrl.toLowerCase() === cleanOriginal) ||
+                    (cleanOriginal.includes(`instagram.com/${ownerUsername}/`) || cleanOriginal.includes(`instagram.com/${ownerUsername}`)) ||
+                    (ownerUsername && cleanOriginal === ownerUsername) ||
+                    (ownerUsername && cleanOriginal === `@${ownerUsername}`);
+                return isMatch;
+            });
+
+            if (matchedItems.length > 0) {
+                let totalComments = 0, totalVideoPlayCount = 0, validComments = 0, validViews = 0;
+                matchedItems.forEach(mi => {
+                    if (typeof mi.commentsCount === 'number') { totalComments += mi.commentsCount; validComments++; }
+                    if (typeof mi.videoPlayCount === 'number') { totalVideoPlayCount += mi.videoPlayCount; validViews++; }
+                });
+                const firstItem = matchedItems[0];
+                accumulatedResults.set(cleanOriginal, {
+                    link,
+                    username: firstItem.ownerUsername || "unknown",
+                    full_name: firstItem.ownerFullName || "",
+                    reels_scraped: matchedItems.length,
+                    avg_comments: validComments > 0 ? Math.round(totalComments / validComments) : 0,
+                    avg_videoplaycount: validViews > 0 ? Math.round(totalVideoPlayCount / validViews) : 0,
+                    status: "success"
+                });
+            }
+        });
+    }
+
+    _buildAvgResultsFromMap(links, accumulatedResults) {
+        return links.map(link => {
+            const key = this._normalizeLink(link);
+            return accumulatedResults.get(key) || { link, status: "processing", error: "Waiting for data..." };
+        });
+    }
+
     _formatItemsAvg(links, items) {
         return links.map(link => {
             const cleanOriginal = link.split('?')[0].replace(/\/$/, "");
