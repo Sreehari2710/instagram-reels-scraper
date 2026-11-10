@@ -12,7 +12,7 @@ interface Result {
     full_name?: string;
     reels_scraped?: number;
     avg_comments?: number | string;
-    avg_videoplaycount?: number | string;
+    avg_views?: number | string;
     error?: string;
 }
 
@@ -276,7 +276,7 @@ export default function ResultsViewAvg({ status, results, onDownload, onStop, on
                                         </div>
                                         <div className="flex flex-col items-center border-l w-24 border-slate-100 pl-4">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase">Avg Views</span>
-                                            <span className="font-bold text-slate-700">{result.avg_videoplaycount || 0}</span>
+                                            <span className="font-bold text-slate-700">{result.avg_views || 0}</span>
                                         </div>
                                     </div>
                                 </td>

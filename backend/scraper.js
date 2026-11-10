@@ -11,6 +11,21 @@ class ApifyScraper {
         this.client = new ApifyClient({ token: apiToken });
     }
 
+    async _fetchDatasetItemsWithRetry(datasetId, log, maxAttempts = 6, delayMs = 2000, client = null) {
+        const apifyClient = client || this.client;
+        let items = [];
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            const res = await apifyClient.dataset(datasetId).listItems({ limit: 1000 });
+            items = res.items;
+            if (items.length > 0) break;
+            if (attempt < maxAttempts) {
+                log(`Dataset empty on attempt ${attempt}/${maxAttempts}, retrying in ${delayMs}ms (results may still be syncing)...`);
+                await new Promise(res => setTimeout(res, delayMs));
+            }
+        }
+        return items;
+    }
+
     async abortRun(runId) {
         if (!this.client || !runId) return;
         try {
@@ -37,16 +52,16 @@ class ApifyScraper {
         try {
             log(`Preparing to scrape ${links.length} reels...`);
             const runInput = {
-                "username": links,
-                "resultsLimit": 1,
-                "skipPinnedPosts": true,
-                "includeSharesCount": true,
-                "includeTranscript": false,
-                "includeDownloadedVideo": false
+                "usernames": links,
+                "maxReelsPerProfile": 1,
+                "sortBy": "newest",
+                "includeSavesAndShares": true,
+                "skipPinned": true,
+                "onlyNew": false
             };
 
             log("Calling Apify start()...");
-            const run = await this.client.actor("apify/instagram-reel-scraper").start(runInput);
+            const run = await this.client.actor("instagram-data-api/instagram-reels-scraper").start(runInput);
             const runId = run.id;
             const datasetId = run.defaultDatasetId;
 
@@ -78,7 +93,7 @@ class ApifyScraper {
                 }
             }
 
-            const { items } = await this.client.dataset(datasetId).listItems({ limit: 1000 });
+            const items = await this._fetchDatasetItemsWithRetry(datasetId, log);
             return this._formatItems(links, items);
 
         } catch (e) {
@@ -87,25 +102,74 @@ class ApifyScraper {
         }
     }
 
+    _extractShortcode(link) {
+        let s = (link || "").split('?')[0].replace(/\/$/, "");
+        if (!s.includes('instagram.com/') && !s.includes('instagr.am/')) return "";
+        try {
+            if (!s.startsWith('http')) s = 'https://' + s;
+            const urlObj = new URL(s);
+            const parts = urlObj.pathname.split('/').filter(p => p.length > 0);
+            const typeIdx = parts.findIndex(p => ['p', 'reel', 'reels', 'tv'].includes(p.toLowerCase()));
+            if (typeIdx !== -1 && parts[typeIdx + 1]) {
+                return parts[typeIdx + 1];
+            }
+        } catch (e) { }
+        return "";
+    }
+
+    _extractUsername(link) {
+        let s = (link || "").split('?')[0].replace(/\/$/, "");
+        if (s.includes('instagram.com/') || s.includes('instagr.am/')) {
+            try {
+                if (!s.startsWith('http')) s = 'https://' + s;
+                const urlObj = new URL(s);
+                const parts = urlObj.pathname.split('/').filter(p => p.length > 0);
+                if (parts.length > 0) {
+                    const firstPart = parts[0];
+                    if (!['p', 'reel', 'reels', 'tv', 'explore', 'stories'].includes(firstPart.toLowerCase())) {
+                        return firstPart.toLowerCase();
+                    }
+                }
+            } catch (e) { }
+            return "";
+        }
+        return s.replace(/^@/, "").trim().toLowerCase();
+    }
+
     _formatItems(links, items) {
         return links.map(link => {
             // Scrub original link: basic cleaning
             const cleanOriginal = link.split('?')[0].replace(/\/$/, "");
+            const linkShortcode = this._extractShortcode(link);
+            const linkUsername = this._extractUsername(link);
 
-            const matchedItem = items.find(item => {
-                // Prioritize inputUrl (Apify tracks what we sent)
-                const inputUrl = (item.inputUrl || "").split('?')[0].replace(/\/$/, "");
-                const currentUrl = (item.url || "").split('?')[0].replace(/\/$/, "");
+            let matchedItem = null;
 
-                // Check for direct match on inputUrl OR if the item url matches our cleaned input
-                return (inputUrl && inputUrl === cleanOriginal) ||
-                    (currentUrl && currentUrl === cleanOriginal) ||
-                    (currentUrl && currentUrl.includes(cleanOriginal)) ||
-                    (cleanOriginal && cleanOriginal.includes(currentUrl));
-            });
+            // Primary: match by shortcode (format-agnostic — handles /p/ vs /reel/ vs /reels/ path differences)
+            if (linkShortcode) {
+                matchedItem = items.find(item => {
+                    const itemShortcode = item.shortCode || this._extractShortcode(item.url);
+                    return itemShortcode && itemShortcode === linkShortcode;
+                });
+            }
+
+            // Fallback: profile-style input (e.g. a username/profile link) — match by ownerUsername instead
+            if (!matchedItem && linkUsername) {
+                matchedItem = items.find(item => (item.ownerUsername || "").toLowerCase() === linkUsername);
+            }
+
+            // Last resort: raw URL string comparison
+            if (!matchedItem) {
+                matchedItem = items.find(item => {
+                    const currentUrl = (item.url || "").split('?')[0].replace(/\/$/, "");
+                    return (currentUrl && currentUrl === cleanOriginal) ||
+                        (currentUrl && currentUrl.includes(cleanOriginal)) ||
+                        (cleanOriginal && cleanOriginal.includes(currentUrl));
+                });
+            }
 
             if (matchedItem) {
-                const tsStr = matchedItem.timestamp || "";
+                const tsStr = matchedItem.takenAt || "";
                 let year = "", month = "", date = "";
                 if (tsStr) {
                     try {
@@ -117,15 +181,17 @@ class ApifyScraper {
                 }
 
                 return {
-                    link,
+                    link: matchedItem.url || link,
                     shortcode: matchedItem.shortCode || "",
                     username: matchedItem.ownerUsername || "unknown",
                     full_name: matchedItem.ownerFullName || "",
                     caption: matchedItem.caption || "",
-                    likes: matchedItem.likesCount || 0,
-                    comments: matchedItem.commentsCount || 0,
-                    shares: matchedItem.sharesCount || 0,
-                    videoplaycount: matchedItem.videoPlayCount || 0,
+                    views: matchedItem.views || 0,
+                    likes: matchedItem.likes || 0,
+                    comments: matchedItem.comments || 0,
+                    saves: matchedItem.saves || 0,
+                    shares: matchedItem.shares || 0,
+                    reposts: matchedItem.reposts || 0,
                     year, month, date,
                     status: "success"
                 };
@@ -168,16 +234,16 @@ class ApifyScraper {
             });
 
             const runInput = {
-                "username": apifyUsernames,
-                "resultsLimit": 10,
-                "skipPinnedPosts": true,
-                "includeSharesCount": false,
-                "includeTranscript": false,
-                "includeDownloadedVideo": false
+                "usernames": apifyUsernames,
+                "maxReelsPerProfile": 10,
+                "sortBy": "newest",
+                "includeSavesAndShares": false,
+                "skipPinned": true,
+                "onlyNew": false
             };
 
             log("Calling Apify start()...");
-            const run = await this.client.actor("apify/instagram-reel-scraper").start(runInput);
+            const run = await this.client.actor("instagram-data-api/instagram-reels-scraper").start(runInput);
             const runId = run.id;
             const datasetId = run.defaultDatasetId;
 
@@ -209,7 +275,7 @@ class ApifyScraper {
                 }
             }
 
-            const { items } = await this.client.dataset(datasetId).listItems({ limit: 1000 });
+            const items = await this._fetchDatasetItemsWithRetry(datasetId, log);
             return this._formatItemsAvg(links, items);
 
         } catch (e) {
@@ -269,16 +335,16 @@ class ApifyScraper {
                 });
 
                 const runInput = {
-                    "username": apifyUsernames,
-                    "resultsLimit": 10,
-                    "skipPinnedPosts": true,
-                    "includeSharesCount": false,
-                    "includeTranscript": false,
-                    "includeDownloadedVideo": false
+                    "usernames": apifyUsernames,
+                    "maxReelsPerProfile": 10,
+                    "sortBy": "newest",
+                    "includeSavesAndShares": false,
+                    "skipPinned": true,
+                    "onlyNew": false
                 };
 
                 log("Calling Apify start()...");
-                const run = await client.actor("apify/instagram-reel-scraper").start(runInput);
+                const run = await client.actor("instagram-data-api/instagram-reels-scraper").start(runInput);
                 const runId = run.id;
                 const datasetId = run.defaultDatasetId;
                 log(`Run started. ID: ${runId} | Dataset: ${datasetId}`);
@@ -311,8 +377,9 @@ class ApifyScraper {
                     }
                 }
 
-                // Final merge after run ends
-                this._mergeAvgResults(links, lastItems, accumulatedResults);
+                // Final merge after run ends — re-fetch with retry in case the dataset hadn't synced yet
+                const finalItems = await this._fetchDatasetItemsWithRetry(datasetId, log, 6, 2000, client);
+                this._mergeAvgResults(links, finalItems.length > 0 ? finalItems : lastItems, accumulatedResults);
 
                 // Determine which links still have no results → remainingLinks for next key
                 remainingLinks = links.filter(link => !accumulatedResults.has(this._normalizeLink(link)));
@@ -337,10 +404,8 @@ class ApifyScraper {
             if (accumulatedResults.has(cleanOriginal)) return; // already done
 
             const matchedItems = items.filter(item => {
-                const inputUrl = (item.inputUrl || "").split('?')[0].replace(/\/$/, "");
                 const ownerUsername = (item.ownerUsername || "").toLowerCase();
                 const isMatch =
-                    (inputUrl && inputUrl.toLowerCase() === cleanOriginal) ||
                     (cleanOriginal.includes(`instagram.com/${ownerUsername}/`) || cleanOriginal.includes(`instagram.com/${ownerUsername}`)) ||
                     (ownerUsername && cleanOriginal === ownerUsername) ||
                     (ownerUsername && cleanOriginal === `@${ownerUsername}`);
@@ -348,19 +413,19 @@ class ApifyScraper {
             });
 
             if (matchedItems.length > 0) {
-                let totalComments = 0, totalVideoPlayCount = 0, validComments = 0, validViews = 0;
+                let totalComments = 0, totalViews = 0, validComments = 0, validViews = 0;
                 matchedItems.forEach(mi => {
-                    if (typeof mi.commentsCount === 'number') { totalComments += mi.commentsCount; validComments++; }
-                    if (typeof mi.videoPlayCount === 'number') { totalVideoPlayCount += mi.videoPlayCount; validViews++; }
+                    if (typeof mi.comments === 'number') { totalComments += mi.comments; validComments++; }
+                    if (typeof mi.views === 'number') { totalViews += mi.views; validViews++; }
                 });
                 const firstItem = matchedItems[0];
                 accumulatedResults.set(cleanOriginal, {
                     link,
                     username: firstItem.ownerUsername || "unknown",
-                    full_name: firstItem.ownerFullName || "",
+                    full_name: "",
                     reels_scraped: matchedItems.length,
                     avg_comments: validComments > 0 ? Math.round(totalComments / validComments) : 0,
-                    avg_videoplaycount: validViews > 0 ? Math.round(totalVideoPlayCount / validViews) : 0,
+                    avg_views: validViews > 0 ? Math.round(totalViews / validViews) : 0,
                     status: "success"
                 });
             }
@@ -379,12 +444,10 @@ class ApifyScraper {
             const cleanOriginal = link.split('?')[0].replace(/\/$/, "");
 
             const matchedItems = items.filter(item => {
-                const inputUrl = (item.inputUrl || "").split('?')[0].replace(/\/$/, "");
                 const ownerUsername = item.ownerUsername || "";
-                
-                // Match either by input URL exactly, or by matching the username in the profile link, or pure username match
-                const isMatch = (inputUrl && inputUrl === cleanOriginal) ||
-                    (cleanOriginal.includes(`instagram.com/${ownerUsername}/`) || cleanOriginal.includes(`instagram.com/${ownerUsername}`)) ||
+
+                // Match by the username in the profile link, or pure username match (no echoed input field)
+                const isMatch = (cleanOriginal.includes(`instagram.com/${ownerUsername}/`) || cleanOriginal.includes(`instagram.com/${ownerUsername}`)) ||
                     (ownerUsername && cleanOriginal === ownerUsername) ||
                     (ownerUsername && cleanOriginal === `@${ownerUsername}`);
                 return isMatch;
@@ -392,33 +455,33 @@ class ApifyScraper {
 
             if (matchedItems.length > 0) {
                 let totalComments = 0;
-                let totalVideoPlayCount = 0;
+                let totalViews = 0;
                 let validCommentsCount = 0;
                 let validViewsCount = 0;
 
                 matchedItems.forEach(mi => {
-                    if (typeof mi.commentsCount === 'number') {
-                        totalComments += mi.commentsCount;
+                    if (typeof mi.comments === 'number') {
+                        totalComments += mi.comments;
                         validCommentsCount++;
                     }
-                    if (typeof mi.videoPlayCount === 'number') {
-                        totalVideoPlayCount += mi.videoPlayCount;
+                    if (typeof mi.views === 'number') {
+                        totalViews += mi.views;
                         validViewsCount++;
                     }
                 });
 
                 const avg_comments = validCommentsCount > 0 ? Math.round(totalComments / validCommentsCount) : 0;
-                const avg_videoplaycount = validViewsCount > 0 ? Math.round(totalVideoPlayCount / validViewsCount) : 0;
+                const avg_views = validViewsCount > 0 ? Math.round(totalViews / validViewsCount) : 0;
 
                 const firstItem = matchedItems[0];
 
                 return {
                     link,
                     username: firstItem.ownerUsername || "unknown",
-                    full_name: firstItem.ownerFullName || "",
+                    full_name: "",
                     reels_scraped: matchedItems.length,
                     avg_comments,
-                    avg_videoplaycount,
+                    avg_views,
                     status: "success"
                 };
             } else {

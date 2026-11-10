@@ -10,11 +10,13 @@ interface Result {
     status: string;
     username?: string;
     full_name?: string;
+    views?: number | string;
     likes?: number | string;
-    videoplaycount?: number | string;
     caption?: string;
     comments?: number | string;
+    saves?: number | string;
     shares?: number | string;
+    reposts?: number | string;
     error?: string;
     year?: string;
     month?: string;
@@ -280,22 +282,30 @@ export default function ResultsView({ status, results, onDownload, onStop, onRes
                                     </div>
                                 </td>
                                 <td className="p-5">
-                                    <div className="flex items-center justify-center gap-4">
+                                    <div className="flex items-center justify-center gap-5 flex-nowrap whitespace-nowrap">
                                         <div className="flex flex-col items-center">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase">Views</span>
+                                            <span className="font-bold text-slate-700">{result.views || 0}</span>
+                                        </div>
+                                        <div className="flex flex-col items-center border-l border-slate-100 pl-5">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase">Likes</span>
                                             <span className="font-bold text-slate-700">{result.likes || 0}</span>
                                         </div>
-                                        <div className="flex flex-col items-center border-x border-slate-100 px-4">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase">Views</span>
-                                            <span className="font-bold text-slate-700">{result.videoplaycount || 0}</span>
-                                        </div>
-                                        <div className="flex flex-col items-center">
+                                        <div className="flex flex-col items-center border-l border-slate-100 pl-5">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase">Comments</span>
                                             <span className="font-bold text-slate-700">{result.comments || 0}</span>
                                         </div>
-                                        <div className="flex flex-col items-center border-l border-slate-100 pl-4">
+                                        <div className="flex flex-col items-center border-l border-slate-100 pl-5">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase">Saves</span>
+                                            <span className="font-bold text-slate-700">{result.saves || 0}</span>
+                                        </div>
+                                        <div className="flex flex-col items-center border-l border-slate-100 pl-5">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase">Shares</span>
                                             <span className="font-bold text-slate-700">{result.shares || 0}</span>
+                                        </div>
+                                        <div className="flex flex-col items-center border-l border-slate-100 pl-5">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase">Reposts</span>
+                                            <span className="font-bold text-slate-700">{result.reposts || 0}</span>
                                         </div>
                                     </div>
                                 </td>

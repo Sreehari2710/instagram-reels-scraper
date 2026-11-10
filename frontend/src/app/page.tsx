@@ -16,11 +16,13 @@ interface Result {
   status: string;
   username?: string;
   full_name?: string;
+  views?: number | string;
   likes?: number | string;
-  videoplaycount?: number | string;
   caption?: string;
   comments?: number | string;
+  saves?: number | string;
   shares?: number | string;
+  reposts?: number | string;
   error?: string;
   year?: string;
   month?: string;

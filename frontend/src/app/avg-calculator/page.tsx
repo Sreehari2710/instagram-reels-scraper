@@ -18,7 +18,7 @@ interface Result {
   full_name?: string;
   reels_scraped?: number;
   avg_comments?: number | string;
-  avg_videoplaycount?: number | string;
+  avg_views?: number | string;
   error?: string;
 }
 

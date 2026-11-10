@@ -274,10 +274,12 @@ app.get('/fields', (req, res) => {
         { id: "username", label: "Username" },
         { id: "full_name", label: "Full Name" },
         { id: "caption", label: "Caption" },
+        { id: "views", label: "Views" },
         { id: "likes", label: "Likes" },
         { id: "comments", label: "Comments" },
+        { id: "saves", label: "Saves" },
         { id: "shares", label: "Shares" },
-        { id: "videoplaycount", label: "Video Play Count" },
+        { id: "reposts", label: "Reposts" },
         { id: "year", label: "Year" },
         { id: "month", label: "Month" },
         { id: "date", label: "Date" }
@@ -299,7 +301,10 @@ app.get('/download/:jobId', (req, res) => {
 
         const result = job.results.find(r => {
             const rClean = (r.link || "").split('?')[0].replace(/\/$/, "");
-            return rClean === cleanLink;
+            // Lenient match: result.link may be the actor's canonical URL, not the raw input cell
+            return rClean === cleanLink ||
+                (rClean && cleanLink.includes(rClean)) ||
+                (cleanLink && rClean.includes(cleanLink));
         });
 
         const mergedRow = { ...row };
@@ -490,7 +495,7 @@ app.get('/fields-avg', (req, res) => {
         { id: "full_name", label: "Full Name" },
         { id: "reels_scraped", label: "Reels Scraped" },
         { id: "avg_comments", label: "Avg Comments" },
-        { id: "avg_videoplaycount", label: "Avg Views" }
+        { id: "avg_views", label: "Avg Views" }
     ]);
 });
 
