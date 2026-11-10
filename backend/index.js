@@ -298,14 +298,30 @@ app.get('/download/:jobId', (req, res) => {
     const data = job.originalRows.map(row => {
         const rawLink = (row[job.linkColumn] || "");
         const cleanLink = rawLink.split('?')[0].replace(/\/$/, "");
+        const rowShortcode = scraper._extractShortcode(rawLink);
+        const rowUsername = scraper._extractUsername(rawLink);
 
-        const result = job.results.find(r => {
-            const rClean = (r.link || "").split('?')[0].replace(/\/$/, "");
-            // Lenient match: result.link may be the actor's canonical URL, not the raw input cell
-            return rClean === cleanLink ||
-                (rClean && cleanLink.includes(rClean)) ||
-                (cleanLink && rClean.includes(cleanLink));
-        });
+        let result = null;
+
+        // Primary: match by shortcode (format-agnostic — handles /p/ vs /reel/ vs /reels/ path differences)
+        if (rowShortcode) {
+            result = job.results.find(r => scraper._extractShortcode(r.link) === rowShortcode);
+        }
+
+        // Fallback: match by username for profile-style inputs
+        if (!result && rowUsername) {
+            result = job.results.find(r => (r.username || "").toLowerCase() === rowUsername);
+        }
+
+        // Last resort: lenient raw URL string comparison
+        if (!result) {
+            result = job.results.find(r => {
+                const rClean = (r.link || "").split('?')[0].replace(/\/$/, "");
+                return rClean === cleanLink ||
+                    (rClean && cleanLink.includes(rClean)) ||
+                    (cleanLink && rClean.includes(cleanLink));
+            });
+        }
 
         const mergedRow = { ...row };
         selectedFields.forEach(f => {
